@@ -13,6 +13,7 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	m_closeAfterAdd = options.closeAfterAdd;
 	m_addTracksFn = options.addTracksFn;
 	m_searchThread = 0;
+	m_noLog = new wxLogNull();
 	m_vbox = new wxBoxSizer(wxVERTICAL);
 	m_hbox1 = new wxBoxSizer(wxHORIZONTAL);
 	m_hbox2 = new wxBoxSizer(wxHORIZONTAL);
@@ -73,6 +74,7 @@ vkSearchWindow::~vkSearchWindow(void)
 		TerminateThread(m_searchThread, 0);
 	}
 	wxSocketBase::Initialize();
+	delete m_noLog;
 }
 
 wxString* vkSearchWindow::StringHash(wxString string){
@@ -130,42 +132,44 @@ bool vkSearchWindow::BuildTrackList(wxString *queryString){
 			wxInputStream* result = url.GetInputStream();
 
 			if(result){
-				wxXmlDocument xml(*result);
+				try{
+					wxXmlDocument xml(*result);
 
-				if(xml.GetRoot()->GetName() != _("error")){
-					wxXmlNode *node = xml.GetRoot()->GetChildren();
+					if(xml.GetRoot()->GetName() != _("error")){
+						wxXmlNode *node = xml.GetRoot()->GetChildren();
 
-					while(node){
-						if(node->GetName() == _("audio")){
-							wxXmlNode *track = node->GetChildren();
-							wxString artist; 
-							wxString title; 
-							wxString url; 
-							long duration = 0;
+						while(node){
+							if(node->GetName() == _("audio")){
+								wxXmlNode *track = node->GetChildren();
+								wxString artist; 
+								wxString title; 
+								wxString url; 
+								long duration = 0;
 
-							while(track){
-								wxString name = track->GetName();
-								if(name == _("artist")){
-									artist = track->GetChildren()->GetContent();
-								} else if(name == _("title")){
-									title = track->GetChildren()->GetContent();
-								} else if(name == _("url")){
-									url = track->GetChildren()->GetContent();
-								} else if(name == _("duration")){
-									track->GetChildren()->GetContent().ToLong(&duration);
+								while(track){
+									wxString name = track->GetName();
+									if(name == _("artist")){
+										artist = track->GetChildren()->GetContent();
+									} else if(name == _("title")){
+										title = track->GetChildren()->GetContent();
+									} else if(name == _("url")){
+										url = track->GetChildren()->GetContent();
+									} else if(name == _("duration")){
+										track->GetChildren()->GetContent().ToLong(&duration);
+									}
+									track = track->GetNext();
 								}
-								track = track->GetNext();
+								Audio* audio = new Audio();
+								audio->artist = artist; audio->title = title; audio->url = url;  audio->duration = (int)duration;  m_tracks->push_back(audio);
 							}
-							Audio* audio = new Audio();
-							audio->artist = artist; audio->title = title; audio->url = url;  audio->duration = (int)duration;  m_tracks->push_back(audio);
+							node = node->GetNext();
 						}
-						node = node->GetNext();
+						success = true;
+					} else {
+						SetStatusText("vk.com request error: " + xml.GetRoot()->GetChildren()->GetContent());
+						success = false;
 					}
-					success = true;
-				} else {
-					SetStatusText("vk.com request error: " + xml.GetRoot()->GetChildren()->GetContent());
-					success = false;
-				}
+				}catch(...){}
 				wxDELETE(result);
 
 			}
@@ -245,48 +249,56 @@ Audio* vkSearchWindow::VkSearchTrack(wxString artistName, wxString trackName){
 				wxInputStream* result = url.GetInputStream();
 
 				if(result){
-					wxXmlDocument xml(*result);
-					if(xml.GetRoot()->GetName() != _("error")){
-						wxXmlNode *node = xml.GetRoot()->GetChildren();
+					try{
+						wxXmlDocument xml;
+						
+						if( xml.Load(*result) && xml.GetRoot() && xml.GetRoot()->GetName() != _("error")){
+							wxXmlNode *node = xml.GetRoot()->GetChildren();
 
-						while(node){
-							if(node->GetName() == _("audio")){
-								wxXmlNode *track = node->GetChildren();
-								wxString artist;
-								wxString title;
-								wxString url;
-								long duration = 0;
+							while(node){
+								if(node->GetName() == _("audio")){
+									wxXmlNode *track = node->GetChildren();
+									wxString artist;
+									wxString title;
+									wxString url;
+									long duration = 0;
 
-								while(track){
-									wxString name = track->GetName();
-									if(track->GetChildren()){
-										if(name == _("artist")){
-											artist = track->GetChildren()->GetContent();
-										} else if(name == _("title")){
-											title = track->GetChildren()->GetContent();
-										} else if(name == _("url")){
-											url = track->GetChildren()->GetContent();
-										} else if(name == _("duration")){
-											track->GetChildren()->GetContent().ToLong(&duration);
+									while(track){
+										wxString name = track->GetName();
+										if(track->GetChildren()){
+											if(name == _("artist")){
+												artist = track->GetChildren()->GetContent();
+											} else if(name == _("title")){
+												title = track->GetChildren()->GetContent();
+											} else if(name == _("url")){
+												url = track->GetChildren()->GetContent();
+											} else if(name == _("duration")){
+												track->GetChildren()->GetContent().ToLong(&duration);
+											}
 										}
+										track = track->GetNext();
 									}
-									track = track->GetNext();
-								}
-								if(artist.IsSameAs(artistName, false) && title.IsSameAs(trackName, false)){
-									audio = new Audio();
+									if(artist.IsSameAs(artistName, false) && title.IsSameAs(trackName, false)){
+										audio = new Audio();
 
-									audio->artist = artist;
-									audio->title = title;
-									audio->url = url;
-									audio->duration = (int)duration;
+										audio->artist = artist;
+										audio->title = title;
+										audio->url = url;
+										audio->duration = (int)duration;
+									}
 								}
+								node = node->GetNext();
 							}
-							node = node->GetNext();
+						} else {
+							if(xml.GetRoot()){
+								SetStatusText("vk.com request error: " + xml.GetRoot()->GetChildren()->GetContent());
+							} else {
+								SetStatusText("vk.com request error");
+							}
+							m_vkRequestError = true;
 						}
-					} else {
-						SetStatusText("vk.com request error: " + xml.GetRoot()->GetChildren()->GetContent());
-						m_vkRequestError = true;
-					}
+					} catch(...){}
+
 					wxDELETE(result);
 				}
 			}
@@ -346,7 +358,8 @@ bool vkSearchWindow::LastFmArtistSearch( wxString artist, int maxCount /*= 50*/ 
 							}
 						}
 					}
-				}					
+				}
+				wxMilliSleep(333);
 				node = node->GetNext();
 			}
 			success = !m_vkRequestError;
@@ -388,6 +401,7 @@ bool vkSearchWindow::LastFmTagSearch( wxString tag )
 					}
 
 				}
+				wxMilliSleep(333);
 				track = track->GetNext();
 			}
 			wxDELETE(toptracks);

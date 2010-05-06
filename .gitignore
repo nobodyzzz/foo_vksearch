@@ -2,3 +2,14 @@
 *.ncb
 *.aps
 *.suo
+pfc/
+foo_vksearch/Debug/
+foo_vksearch/foobar2000_component_client/
+foo_vksearch/helpers/
+foo_vksearch/Release/
+foo_vksearch/SDK/
+foo_vksearch/shared/
+foo_vksearch/foo_vksearch/Debug/
+foo_vksearch/foo_vksearch/Release/
+foo_vksearch/vkApp/Debug/
+foo_vksearch/vkApp/Release/

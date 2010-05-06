@@ -4,7 +4,7 @@
 #include "config.h"
 
 
-DECLARE_COMPONENT_VERSION(NAME, "0.0.1", "search audio tracks using vk.com and last.fm");
+DECLARE_COMPONENT_VERSION(NAME, "0.0.2", "search audio tracks using vk.com and last.fm");
 
 class vksearch_mainmenu_command : public mainmenu_commands{
 	virtual t_uint32 get_command_count() {

@@ -21,6 +21,7 @@
 #include "wx/file.h"
 #include "wx/filename.h"
 #include "wx/stdpaths.h"
+#include "wx/log.h"
 
 #define MD5LEN 16
 
@@ -111,6 +112,7 @@ private:
 	wxCheckBox* m_keepPrevious;
 	wxListCtrl *m_searchResult;
 	std::list<Audio*>* m_tracks;
+	wxLogNull* m_noLog;
 	wxString m_apiId;
 	wxString m_secret;
 	wxString m_viewerId;
