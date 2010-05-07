@@ -4,8 +4,10 @@
 
 void CreateSearchWindow(searchOptions& opts){
 	int argc = 0;
+	wxChar** argv = NULL;
+
 	wxApp::SetInstance(new vkApp(opts));
-	wxEntryStart(argc, NULL);
+	wxEntryStart(argc, argv);
 	wxTheApp->OnInit();
 	wxTheApp->OnRun();
 	wxTheApp->OnExit();

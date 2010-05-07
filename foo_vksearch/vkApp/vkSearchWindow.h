@@ -66,8 +66,8 @@ struct equal_tracks : std::binary_function<Audio*, Audio*, bool>{
 		wxString tmp2;
 		wxString debug;
 
-		tmp1.Printf("%s%s%d", op1->artist, op1->title, op1->duration);
-		tmp2.Printf("%s%s%d", op2->artist, op2->title, op2->duration);
+		tmp1.Printf(wxT("%s%s%d"), op1->artist, op1->title, op1->duration);
+		tmp2.Printf(wxT("%s%s%d"), op2->artist, op2->title, op2->duration);
 		return tmp1.IsSameAs(tmp2, false);
 	}
 };
@@ -77,8 +77,8 @@ struct compare_tracks{
 		wxString tmp1; 
 		wxString tmp2;
 
-		tmp1.Printf("%s%s%d", op1->artist, op1->title, op1->duration);
-		tmp2.Printf("%s%s%d", op2->artist, op2->title, op2->duration);
+		tmp1.Printf(wxT("%s%s%d"), op1->artist, op1->title, op1->duration);
+		tmp2.Printf(wxT("%s%s%d"), op2->artist, op2->title, op2->duration);
 		return tmp1.CmpNoCase(tmp2) < 0;
 	}
 };
@@ -123,9 +123,9 @@ private:
 	bool m_closeAfterAdd;
 	bool m_vkRequestError;
 
-	wxString* StringHash(wxString string);
-	wxString* BuildQueryString(wxString query);
-	bool BuildTrackList(wxString *queryString);
+	wxString* StringHash(char* string);
+	char* BuildQueryString(wxString query);
+	bool BuildTrackList(char *queryString);
 	DWORD __stdcall SearchThread();
 	void CleanUpSearchResult();
 	void DoSearch();
