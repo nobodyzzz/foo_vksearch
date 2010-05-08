@@ -137,6 +137,7 @@ private:
 	void DeleteSelectedTracks();
 	void CopyUrlsToClipboard();
 	void AddSelected();
+	wxString Unescape(wxString string);
 	void OnSearchButtonClick(wxCommandEvent& evt);
 	void OnAddAllClick(wxCommandEvent& evt);
 	void OnAddSelectedClick(wxCommandEvent& evt);

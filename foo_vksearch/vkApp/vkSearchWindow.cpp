@@ -119,6 +119,7 @@ char* vkSearchWindow::BuildQueryString( wxString query )
 		if(hash){
 			result = new char[INTERNET_MAX_URL_LENGTH + 1];
 			
+			query.Replace(wxT("&"), wxT("%26"));
 			sprintf_s(	result, 
 						INTERNET_MAX_URL_LENGTH, 
 						"http://api.vkontakte.ru/api.php?api_id=%s&count=200&method=audio.search&sig=%s&test_mode=1&q=%s",
@@ -155,9 +156,9 @@ bool vkSearchWindow::BuildTrackList( char *queryString )
 								while(track){
 									wxString name = track->GetName();
 									if(name == wxT("artist")){
-										artist = track->GetChildren()->GetContent();
+										artist = Unescape(track->GetChildren()->GetContent());
 									} else if(name == wxT("title")){
-										title = track->GetChildren()->GetContent();
+										title = Unescape(track->GetChildren()->GetContent());
 									} else if(name == wxT("url")){
 										url = track->GetChildren()->GetContent();
 									} else if(name == wxT("duration")){
@@ -273,9 +274,9 @@ Audio* vkSearchWindow::VkSearchTrack(wxString artistName, wxString trackName){
 										wxString name = track->GetName();
 										if(track->GetChildren()){
 											if(name == wxT("artist")){
-												artist = track->GetChildren()->GetContent();
+												artist = Unescape(track->GetChildren()->GetContent());
 											} else if(name == wxT("title")){
-												title = track->GetChildren()->GetContent();
+												title = Unescape(track->GetChildren()->GetContent());
 											} else if(name == wxT("url")){
 												url = track->GetChildren()->GetContent();
 											} else if(name == wxT("duration")){
@@ -287,8 +288,8 @@ Audio* vkSearchWindow::VkSearchTrack(wxString artistName, wxString trackName){
 									if(artist.IsSameAs(artistName, false) && title.IsSameAs(trackName, false)){
 										audio = new Audio();
 
-										audio->artist = artist;
-										audio->title = title;
+										audio->artist = artistName;
+										audio->title = trackName;
 										audio->url = url;
 										audio->duration = (int)duration;
 									}
@@ -570,4 +571,15 @@ void vkSearchWindow::OnSearchItemActivate( wxListEvent& evt )
 {
 	vkSearchWindow* _this = (vkSearchWindow*)GetParent()->GetParent();
 	_this->AddSelected();
+}
+
+wxString vkSearchWindow::Unescape( wxString string )
+{
+	string.Replace(wxT("&lt;"), wxT("<"));
+	string.Replace(wxT("&gt;"), wxT(">"));
+	string.Replace(wxT("&apos;"), wxT("'"));
+	string.Replace(wxT("&quot;"), wxT("\""));
+	string.Replace(wxT("&amp;"), wxT("&"));
+	string.Replace(wxT("&#39;"), wxT("'"));
+	return string;
 }
