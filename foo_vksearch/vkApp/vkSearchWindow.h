@@ -121,7 +121,6 @@ private:
 
 
 	wxString* StringHash(const char* string);
-	char* BuildQueryString(wxString query);
 	bool BuildTrackList(char *queryString);
 	DWORD __stdcall SearchThread();
 	void CleanUpSearchResult();
@@ -144,13 +143,14 @@ private:
 	void OnKeyDown(wxKeyEvent& event);
 	void OnSearchItemActivate(wxListEvent& evt);
 
-	wxString* LastFmSigCall(std::map<wxString, wxString> params);
+	wxString* LastFmCallSig(std::map<wxString, wxString> params);
 	wxString* GetLastFmToken();
 	wxString* GetAuthSession(wxString token);
 	void LastFmRequestAuthorisation(wxString token);
 	bool LastFmGetRecomendations();
 	wxString* BuildLastFmMethodUrl(std::map<wxString, wxString> params);
-
+	wxString* VkCallSig(std::map<wxString, wxString> params);
+	char* VkMethodUrl(std::map<wxString, wxString> params);
 public:
 	vkSearchWindow(const wxString& title, searchOptions options);
 	~vkSearchWindow(void);

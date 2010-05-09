@@ -109,41 +109,6 @@ wxString* vkSearchWindow::StringHash( const char* string )
 	}
 	return result;
 }
-char* vkSearchWindow::BuildQueryString( wxString query )
-{
-	char* result = NULL;
-	if(query.Len()){
-		wxString* hash;
-		char signature[INTERNET_MAX_URL_LENGTH + 1] = {0};
-		
-		sprintf_s(	signature, INTERNET_MAX_URL_LENGTH, "%sapi_id=%scount=200method=audio.searchq=%stest_mode=1%s",
-					m_viewerId.ToAscii(), m_apiId.ToAscii(), query.ToUTF8().data(), m_secret.ToAscii());
-
-		hash = StringHash(signature);
-		if(hash){
-			result = new char[INTERNET_MAX_URL_LENGTH + 1];
-			
-			//escape reserved url characters
-			query.Replace(wxT("&"), wxT("%26"));
-			query.Replace(wxT("+"), wxT("%2B"));
-			query.Replace(wxT("$"), wxT("%24"));
-			query.Replace(wxT(","), wxT("%2C"));
-			query.Replace(wxT("/"), wxT("%2F"));
-			query.Replace(wxT(":"), wxT("%3A"));
-			query.Replace(wxT(";"), wxT("%3B"));
-			query.Replace(wxT("="), wxT("%3D"));
-			query.Replace(wxT("?"), wxT("%3F"));
-			query.Replace(wxT("@"), wxT("%40"));
-			query.Replace(wxT("#"), wxT("%23"));
-							
-			sprintf_s(	result, 
-						INTERNET_MAX_URL_LENGTH, 
-						"http://api.vkontakte.ru/api.php?api_id=%s&count=200&method=audio.search&sig=%s&test_mode=1&q=%s",
-						m_apiId.ToAscii(), hash->ToAscii(), query.ToUTF8().data());
-		}
-	}
-	return result;
-}
 bool vkSearchWindow::BuildTrackList( char *queryString )
 {
 	bool success = false;
@@ -221,8 +186,51 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 		query.Replace(wxT("tag:"), wxEmptyString);
 		success = LastFmTagSearch(query);
 	} else if(query.StartsWith(wxT("vk:"))){
+		std::map<wxString, wxString> params;
+		
 		query.Replace(wxT("vk:"), wxEmptyString);
-		queryString = BuildQueryString(query);
+		params[wxT("count")] = wxT("200");
+		params[wxT("method")] = wxT("audio.search");
+		params[wxT("q")] = query;
+		queryString = VkMethodUrl(params);
+		if(queryString){
+			if(BuildTrackList(queryString)){
+				m_tracks->sort(compare_tracks());
+				m_tracks->unique(equal_tracks());
+				std::list<Audio*>::iterator track = m_tracks->begin();
+
+				while(track != m_tracks->end()){
+					AddTrackToResultList(*track);
+					track++;
+				}
+			}
+		}
+	} else if(query.StartsWith(wxT("uid:"))){
+		std::map<wxString, wxString> params;
+
+		query.Replace(wxT("uid:"), wxEmptyString);
+		params[wxT("method")] = wxT("audio.get");
+		params[wxT("uid")] = query;
+		queryString = VkMethodUrl(params);
+		if(queryString){
+			if(BuildTrackList(queryString)){
+				m_tracks->sort(compare_tracks());
+				m_tracks->unique(equal_tracks());
+				std::list<Audio*>::iterator track = m_tracks->begin();
+
+				while(track != m_tracks->end()){
+					AddTrackToResultList(*track);
+					track++;
+				}
+			}
+		}
+	} else if(query.StartsWith(wxT("gid:"))){
+		std::map<wxString, wxString> params;
+
+		query.Replace(wxT("gid:"), wxEmptyString);
+		params[wxT("method")] = wxT("audio.get");
+		params[wxT("gid")] = query;
+		queryString = VkMethodUrl(params);
 		if(queryString){
 			if(BuildTrackList(queryString)){
 				m_tracks->sort(compare_tracks());
@@ -274,8 +282,13 @@ Audio* vkSearchWindow::VkSearchTrack(wxString artistName, wxString trackName){
 	Audio* audio = NULL;
 
 	if(artistName.Len() && trackName.Len()){
+		std::map<wxString, wxString> params;
+
 		query.Printf(wxT("%s - %s"), artistName, trackName);
-		queryString = BuildQueryString(query);
+		params[wxT("count")] = wxT("200");
+		params[wxT("method")] = wxT("audio.search");
+		params[wxT("q")] = query;
+		queryString = VkMethodUrl(params);
 		if(queryString){
 			wxURL url(wxString::FromAscii(queryString));
 
@@ -548,7 +561,7 @@ wxString vkSearchWindow::Unescape( wxString string )
 	return string;
 }
 
-wxString* vkSearchWindow::LastFmSigCall( std::map<wxString, wxString> params )
+wxString* vkSearchWindow::LastFmCallSig( std::map<wxString, wxString> params )
 {
 	wxString* result = NULL;
 	if(!params.empty()){
@@ -696,7 +709,7 @@ bool vkSearchWindow::LastFmGetRecomendations(){
 wxString* vkSearchWindow::BuildLastFmMethodUrl( std::map<wxString, wxString> params )
 {
 	wxString* result = NULL;
-	wxString* api_sig = LastFmSigCall(params);
+	wxString* api_sig = LastFmCallSig(params);
 	if(!params.empty() && api_sig){
 		result = new wxString(wxT("http://ws.audioscrobbler.com/2.0/?"));
 		std::map<wxString, wxString>::iterator it;
@@ -775,3 +788,66 @@ void vkSearchWindow::OnSearchItemActivate( wxListEvent& evt )
 	_this->AddSelected();
 }
 
+wxString* vkSearchWindow::VkCallSig( std::map<wxString, wxString> params )
+{
+	wxString* result = NULL; 
+	if(!params.empty()){
+		char signature[INTERNET_MAX_URL_LENGTH + 1] = {0};
+		char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
+		std::map<wxString, wxString>::iterator it = params.begin();
+
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_viewerId.ToUTF8().data());
+		sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH,"api_id=%s", m_apiId.ToUTF8().data());
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
+		params[wxT("test_mode")] = wxT("1");
+		while(it != params.end()){
+			sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
+			strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
+			it++;
+		}
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_secret.ToUTF8().data());
+		result = StringHash(signature);
+	}
+	return result;
+}
+
+char* vkSearchWindow::VkMethodUrl( std::map<wxString, wxString> params )
+{
+	char* result = NULL;
+
+	if(!params.empty()){
+		wxString *sig = VkCallSig(params);
+		if(sig){
+			char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
+			std::map<wxString, wxString>::iterator it = params.begin();
+
+			result = new char[INTERNET_MAX_URL_LENGTH + 1];
+			sprintf_s(result, INTERNET_MAX_URL_LENGTH, "http://api.vkontakte.ru/api.php?api_id=%s", m_apiId.ToUTF8().data());
+			if(params.find(wxT("q")) != params.end()){
+				//escape reserved url characters
+				params[wxT("q")].Replace(wxT("&"), wxT("%26"));
+				params[wxT("q")].Replace(wxT("+"), wxT("%2B"));
+				params[wxT("q")].Replace(wxT("$"), wxT("%24"));
+				params[wxT("q")].Replace(wxT(","), wxT("%2C"));
+				params[wxT("q")].Replace(wxT("/"), wxT("%2F"));
+				params[wxT("q")].Replace(wxT(":"), wxT("%3A"));
+				params[wxT("q")].Replace(wxT(";"), wxT("%3B"));
+				params[wxT("q")].Replace(wxT("="), wxT("%3D"));
+				params[wxT("q")].Replace(wxT("?"), wxT("%3F"));
+				params[wxT("q")].Replace(wxT("@"), wxT("%40"));
+				params[wxT("q")].Replace(wxT("#"), wxT("%23"));
+			}
+			params[wxT("sig")] = sig->c_str();
+			params[wxT("test_mode")] = wxT("1");
+			while(it != params.end()){
+				sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "&%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
+				strcat_s(result, INTERNET_MAX_URL_LENGTH, paramPair);
+				it++;
+			}
+			/*sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "sig=%s&test_mode=1", sig->c_str());
+			strcat_s(result, INTERNET_MAX_URL_LENGTH, paramPair);*/
+			wxDELETE(sig);
+		}
+	}
+	return result;
+}
