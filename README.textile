@@ -1,5 +1,7 @@
 foobar2000 plugin for searching audio tracks from vk.com(vkontakte.ru). Requires foobar2000 1.0.x(versions 0.9.x are not supported).Add "Add tracks from vk.com" to File menu.
 
+Download "here":http://github.com/downloads/nobodyzzz/foo_vksearch/foo_vksearch.dll and put foo_vksearch to components folder in foobar2000 installation directory.
+
 Queries help:
 * artist(eg Rosetta) - take top50 tracks of artis from last.fm
 * tag:style (eg tag:jazz hop) - take top100 tracks of tag from last.fm
