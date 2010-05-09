@@ -1,4 +1,4 @@
-foobar2000 plugin for searching audio tracks from vk.com(vkontakte.ru). Requires foobar2000 1.0.x(versions 0.9.x are not supported)
+foobar2000 plugin for searching audio tracks from vk.com(vkontakte.ru). Requires foobar2000 1.0.x(versions 0.9.x are not supported).Add "Add tracks from vk.com" to File menu.
 
 Queries help:
 * artist(eg Rosetta) - take top50 tracks of artis from last.fm

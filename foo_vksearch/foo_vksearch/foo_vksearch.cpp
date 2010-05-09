@@ -6,6 +6,17 @@
 
 DECLARE_COMPONENT_VERSION(NAME, "0.0.3", "search audio tracks using vk.com and last.fm");
 
+class process_locations_notify_my : public process_locations_notify {
+public:
+	void on_completion(const pfc::list_base_const_t<metadb_handle_ptr> & p_items)
+	{
+		static_api_ptr_t<playlist_manager> plm;
+		plm->activeplaylist_add_items(p_items, bit_array_true());
+	};
+
+	void on_aborted() { };
+};
+
 class vksearch_mainmenu_command : public mainmenu_commands{
 	virtual t_uint32 get_command_count() {
 		return 1;
@@ -66,12 +77,20 @@ class vksearch_mainmenu_command : public mainmenu_commands{
 		return true;
 	}
 	static void add_tracks(std::vector<std::string> tracks){
-		static_api_ptr_t<playlist_manager> plm;
 		pfc::list_t<const char*> p_urls;
+		service_ptr_t<process_locations_notify_my> p_notify = new service_impl_t<process_locations_notify_my>();
+		
 		for(size_t i = 0; i < tracks.size(); i++){
 			p_urls.add_item(tracks[i].c_str());
 		}
-		plm->activeplaylist_add_locations( p_urls, true, FindWindow(FOOBAR_WINDOW_CLASS, NULL));
+		static_api_ptr_t<playlist_incoming_item_filter_v2>()->process_locations_async(
+			p_urls,
+			playlist_incoming_item_filter_v2::op_flag_background,
+			NULL,
+			NULL,
+			NULL,
+			p_notify
+			);
 	}
 	static void save_lastfm_token(const char* token){
 		lastfm_session = token;
