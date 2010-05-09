@@ -7,10 +7,14 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	m_apiId = wxString::FromAscii(options.api_id);
 	m_secret = wxString::FromAscii(options.secret);
 	m_viewerId = wxString::FromAscii(options.viewer_id);
+	m_lastFmApiKey = wxT("15ce8760abe155ebab4a6365ec6c9915");
+	m_lastFmSecret = wxT("06beee64c545f5fe65accf485492dfe9");
+	m_lastFmSession = wxString::FromAscii(options.lastfm_session);
 	m_radioMaxArtists = options.radioMaxArtists;
 	m_radioMaxTracks = options.radioMaxTraks;
 	m_closeAfterAdd = options.closeAfterAdd;
 	m_addTracksFn = options.addTracksFn;
+	m_saveLastFmSessionFn = options.saveLastFmSessionFn;
 	m_searchThread = 0;
 	m_noLog = new wxLogNull();
 	m_vbox = new wxBoxSizer(wxVERTICAL);
@@ -76,7 +80,7 @@ vkSearchWindow::~vkSearchWindow(void)
 	delete m_noLog;
 }
 
-wxString* vkSearchWindow::StringHash( char* string )
+wxString* vkSearchWindow::StringHash( const char* string )
 {
 	HCRYPTPROV hProv = 0;
 	HCRYPTHASH hHash = 0;
@@ -119,7 +123,19 @@ char* vkSearchWindow::BuildQueryString( wxString query )
 		if(hash){
 			result = new char[INTERNET_MAX_URL_LENGTH + 1];
 			
+			//escape reserved url characters
 			query.Replace(wxT("&"), wxT("%26"));
+			query.Replace(wxT("+"), wxT("%2B"));
+			query.Replace(wxT("$"), wxT("%24"));
+			query.Replace(wxT(","), wxT("%2C"));
+			query.Replace(wxT("/"), wxT("%2F"));
+			query.Replace(wxT(":"), wxT("%3A"));
+			query.Replace(wxT(";"), wxT("%3B"));
+			query.Replace(wxT("="), wxT("%3D"));
+			query.Replace(wxT("?"), wxT("%3F"));
+			query.Replace(wxT("@"), wxT("%40"));
+			query.Replace(wxT("#"), wxT("%23"));
+							
 			sprintf_s(	result, 
 						INTERNET_MAX_URL_LENGTH, 
 						"http://api.vkontakte.ru/api.php?api_id=%s&count=200&method=audio.search&sig=%s&test_mode=1&q=%s",
@@ -222,6 +238,17 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 	} else if(query.StartsWith(wxT("radio:"))){
 		query.Replace(wxT("radio:"), wxEmptyString);
 		success = LastFmArtistRadio(query);
+	} else if(query.IsSameAs(wxT("recs"), false) || query.IsSameAs(wxT("recommendations"), false)){
+		if(m_lastFmSession.Len() == 0){
+			wxString token = GetLastFmToken()->c_str();
+			LastFmRequestAuthorisation(token);
+			wxMessageBox(wxT("Allow access to your last.fm profile and press ok"), wxT("vk.com audio search"));
+			m_lastFmSession = GetAuthSession(token)->c_str();
+			if(m_saveLastFmSessionFn){
+				m_saveLastFmSessionFn(m_lastFmSession.ToAscii());
+			}
+		}
+		success = LastFmGetRecomendations();
 	} else {
 		success = LastFmArtistSearch(query);
 	}
@@ -502,6 +529,188 @@ void vkSearchWindow::CopyUrlsToClipboard(){
 		wxTheClipboard->Close();
 	}
 }
+void vkSearchWindow::CleanUpSearchResult()
+{
+	m_searchResult->DeleteAllItems();
+	std::for_each(m_tracks->begin(), m_tracks->end(), delete_object());
+	delete m_tracks;				
+	m_tracks = NULL;
+}
+wxString vkSearchWindow::Unescape( wxString string )
+{
+	string.Replace(wxT("&lt;"), wxT("<"));
+	string.Replace(wxT("&gt;"), wxT(">"));
+	string.Replace(wxT("&apos;"), wxT("'"));
+	string.Replace(wxT("&quot;"), wxT("\""));
+	string.Replace(wxT("&amp;"), wxT("&"));
+	string.Replace(wxT("&#39;"), wxT("'"));
+	string.Replace(wxT("&#62;"), wxT(">"));
+	return string;
+}
+
+wxString* vkSearchWindow::LastFmSigCall( std::map<wxString, wxString> params )
+{
+	wxString* result = NULL;
+	if(!params.empty()){
+		wxString signature = wxT("api_key") + m_lastFmApiKey;
+		std::map<wxString, wxString>::iterator it = params.begin();
+
+		while(it != params.end()){
+			signature += it->first + it->second; 
+			it++;
+		}
+		signature += m_lastFmSecret;
+		result = StringHash(signature.ToUTF8().data());
+	}
+	return result;
+}
+
+wxString* vkSearchWindow::GetLastFmToken()
+{
+	std::map<wxString, wxString> params;
+	wxString* api_sig = NULL;
+	wxString* result = NULL;
+	wxString* methodUrl = NULL;
+
+	params[wxT("method")] = wxT("auth.getToken");
+	methodUrl = BuildLastFmMethodUrl(params);
+	if(methodUrl){		
+		wxURL url(methodUrl->c_str());
+
+		if(url.IsOk()){
+			wxInputStream *response = url.GetInputStream();
+
+			if(response){
+				wxXmlDocument token;
+
+				if(token.Load(*response)){
+					wxXmlNode* node = token.GetRoot()->GetChildren();
+
+					if(node->GetName() == wxT("token")){
+						result = new wxString(node->GetChildren()->GetContent());
+					}
+				}
+				wxDELETE(response);
+			}
+		}		
+	}
+	return result;
+}
+
+wxString* vkSearchWindow::GetAuthSession(wxString token)
+{
+	wxString* result = NULL;
+
+	if(token.Len()){
+		std::map<wxString, wxString> params;
+		wxString* methodUrl;
+
+		params[wxT("method")] = wxT("auth.getSession");
+		params[wxT("token")] = token;
+		methodUrl = BuildLastFmMethodUrl(params);
+		if(methodUrl){
+			wxURL url(methodUrl->c_str());
+
+			if(url.IsOk()){
+				wxInputStream *response = url.GetInputStream();
+
+				if(response){
+					wxXmlDocument session;
+
+					if(session.Load(*response)){
+						wxXmlNode* node = session.GetRoot()->GetChildren();
+
+						if(node->GetName() == wxT("session")){
+							node = node->GetChildren();
+							while(node){
+								if(node->GetName() == wxT("key")){
+									result = new wxString(node->GetChildren()->GetContent());
+									break;
+								}
+								node = node->GetNext();
+							}
+						}
+					}
+					wxDELETE(response);
+				}
+			}			
+		}		
+	}
+	return result;
+}
+
+void vkSearchWindow::LastFmRequestAuthorisation( wxString token )
+{
+	wxString authUrl;
+
+	authUrl.Printf(wxT("http://www.last.fm/api/auth/?api_key=%s&token=%s"), m_lastFmApiKey, token);
+	wxLaunchDefaultBrowser(authUrl);
+}
+
+bool vkSearchWindow::LastFmGetRecomendations(){
+	bool result = false; 
+	if(m_lastFmSession.Len() != 0){
+		std::map<wxString, wxString> params;
+		wxString* methodUrl = NULL; 
+		
+		params[wxT("method")] = wxT("user.getRecommendedArtists"); 
+		params[wxT("sk")] = m_lastFmSession;
+		methodUrl = BuildLastFmMethodUrl(params);
+		if(methodUrl){
+			wxURL url(methodUrl->c_str());
+			if(url.IsOk()){
+				wxInputStream *response = url.GetInputStream();
+
+				if(response){
+					wxXmlDocument recomendations;
+
+					if(recomendations.Load(*response)){
+						wxXmlNode *node = recomendations.GetRoot()->GetChildren()->GetChildren();
+
+						while (node && !m_vkRequestError)
+						{
+							if(node->GetName() == wxT("artist")){
+								wxXmlNode *artist = node->GetChildren();
+								if(artist->GetName() == wxT("name")){
+									wxString name = artist->GetChildren()->GetContent();
+
+									LastFmArtistSearch(name, m_radioMaxTracks);
+								}
+							}
+							node = node->GetNext();
+						}
+					} 
+					result = !m_vkRequestError; 
+					wxDELETE(response);
+				} else {
+					SetStatusText(wxT("last.fm request failed..."));
+				}
+			}
+		}
+	}
+	return result;
+}
+
+
+
+wxString* vkSearchWindow::BuildLastFmMethodUrl( std::map<wxString, wxString> params )
+{
+	wxString* result = NULL;
+	wxString* api_sig = LastFmSigCall(params);
+	if(!params.empty() && api_sig){
+		result = new wxString(wxT("http://ws.audioscrobbler.com/2.0/?"));
+		std::map<wxString, wxString>::iterator it;
+
+		it = params.begin();
+		while(it != params.end()){
+			result->Append(wxString::Format(wxT("%s=%s&"), it->first, it->second));
+			it++;
+		}
+		result->Append(wxString::Format(wxT("api_key=%s&api_sig=%s"), m_lastFmApiKey, api_sig->c_str()));
+		wxDELETE(api_sig);
+	}
+	return result;
+}
 void vkSearchWindow::OnSearchButtonClick(wxCommandEvent& evt){
 	DoSearch();
 }
@@ -560,26 +769,9 @@ void vkSearchWindow::OnKeyDown(wxKeyEvent& event){
 	}
 }
 
-void vkSearchWindow::CleanUpSearchResult()
-{
-	m_searchResult->DeleteAllItems();
-	std::for_each(m_tracks->begin(), m_tracks->end(), delete_object());
-	delete m_tracks;				
-	m_tracks = NULL;
-}
 void vkSearchWindow::OnSearchItemActivate( wxListEvent& evt )
 {
 	vkSearchWindow* _this = (vkSearchWindow*)GetParent()->GetParent();
 	_this->AddSelected();
 }
 
-wxString vkSearchWindow::Unescape( wxString string )
-{
-	string.Replace(wxT("&lt;"), wxT("<"));
-	string.Replace(wxT("&gt;"), wxT(">"));
-	string.Replace(wxT("&apos;"), wxT("'"));
-	string.Replace(wxT("&quot;"), wxT("\""));
-	string.Replace(wxT("&amp;"), wxT("&"));
-	string.Replace(wxT("&#39;"), wxT("'"));
-	return string;
-}

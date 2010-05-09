@@ -8,6 +8,8 @@ static const GUID g_viewer_id = { 0xc885f5c3, 0x7491, 0x474f, { 0xaa, 0xf2, 0x44
 static const GUID g_radio_max_artists = { 0x7d15dcae, 0x89d7, 0x4434, { 0x81, 0x9c, 0x2e, 0xeb, 0xa, 0xe5, 0x61, 0x3d } };
 static const GUID g_radio_max_tracks = { 0x4c035500, 0xac5d, 0x4dba, { 0xbb, 0x1b, 0x5c, 0xb3, 0x5, 0xe7, 0xc, 0x40 } };
 static const GUID g_close_after_add = { 0x4c035500, 0xac5d, 0x4dba, { 0xbb, 0x1b, 0x5c, 0xb3, 0x5, 0xe7, 0xc, 0x40 } };
+static const GUID g_lastfm_session =  { 0x4e28dcc9, 0x7a27, 0x4e72, { 0x89, 0x50, 0xe0, 0x0, 0x86, 0x70, 0x98, 0x91 } };
+
 
 advconfig_branch_factory vksearch_options_branch("vk.com audio search", g_vksearch_options_branch, advconfig_branch::guid_root, 0);
 advconfig_branch_factory vksearch_advanced_branch("Advanced", g_vksearch_advanced_options_branch, g_vksearch_options_branch, 0);
@@ -32,3 +34,4 @@ advconfig_checkbox_factory close_on_add("Close search window after track(s) add"
 									   g_vksearch_options_branch,
 									   0,
 									   false);
+cfg_string lastfm_session(g_lastfm_session, "");

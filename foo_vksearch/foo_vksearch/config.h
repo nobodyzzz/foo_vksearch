@@ -8,3 +8,4 @@ extern advconfig_string_factory viewer_id;
 extern advconfig_integer_factory radio_max_artists;							
 extern advconfig_integer_factory radio_max_tracks;
 extern advconfig_checkbox_factory close_on_add;
+extern cfg_string lastfm_session;

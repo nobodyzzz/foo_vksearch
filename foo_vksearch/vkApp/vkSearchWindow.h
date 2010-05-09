@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <map>
+
 #include "wx/wxprec.h"
 #include "wx/textctrl.h"
 #include "wx/listctrl.h"
@@ -85,16 +87,6 @@ struct compare_tracks{
 
 typedef void (*pfn_add_tracks)(std::vector<std::string> tracks);
 
-/*typedef struct {
-	char* api_id;
-	char* secret;
-	char* viewer_id;
-	int radioMaxArtists;
-	int radioMaxTraks;
-	bool closeAfterAdd;
-	pfn_add_tracks addTracksFn;
-}searchOptions;*/
-
 
 class vkSearchWindow : 	public wxFrame
 {
@@ -116,14 +108,19 @@ private:
 	wxString m_apiId;
 	wxString m_secret;
 	wxString m_viewerId;
+	wxString m_lastFmApiKey;
+	wxString m_lastFmSecret;
+	wxString m_lastFmSession;
 	int m_radioMaxArtists;
 	int m_radioMaxTracks;
 	pfn_add_tracks m_addTracksFn;
+	pfn_save_lastfm_session m_saveLastFmSessionFn;
 	HANDLE m_searchThread;
 	bool m_closeAfterAdd;
 	bool m_vkRequestError;
 
-	wxString* StringHash(char* string);
+
+	wxString* StringHash(const char* string);
 	char* BuildQueryString(wxString query);
 	bool BuildTrackList(char *queryString);
 	DWORD __stdcall SearchThread();
@@ -146,6 +143,14 @@ private:
 	void OnContextMenu(wxContextMenuEvent& evt);
 	void OnKeyDown(wxKeyEvent& event);
 	void OnSearchItemActivate(wxListEvent& evt);
+
+	wxString* LastFmSigCall(std::map<wxString, wxString> params);
+	wxString* GetLastFmToken();
+	wxString* GetAuthSession(wxString token);
+	void LastFmRequestAuthorisation(wxString token);
+	bool LastFmGetRecomendations();
+	wxString* BuildLastFmMethodUrl(std::map<wxString, wxString> params);
+
 public:
 	vkSearchWindow(const wxString& title, searchOptions options);
 	~vkSearchWindow(void);

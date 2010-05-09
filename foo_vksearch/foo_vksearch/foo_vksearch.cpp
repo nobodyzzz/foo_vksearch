@@ -50,10 +50,12 @@ class vksearch_mainmenu_command : public mainmenu_commands{
 			opts.api_id = api_id_value.get_ptr();
 			opts.secret = secret_value.get_ptr();
 			opts.viewer_id = viewer_id_value.get_ptr();
+			opts.lastfm_session = lastfm_session;
 			opts.radioMaxArtists = artists_max;
 			opts.radioMaxTraks = tracks_max;
 			opts.closeAfterAdd = close_after_add;
 			opts.addTracksFn = &vksearch_mainmenu_command::add_tracks;
+			opts.saveLastFmSessionFn = &vksearch_mainmenu_command::save_lastfm_token;
 			
 			CreateSearchWindow(opts);
 		}
@@ -70,6 +72,9 @@ class vksearch_mainmenu_command : public mainmenu_commands{
 			p_urls.add_item(tracks[i].c_str());
 		}
 		plm->activeplaylist_add_locations( p_urls, true, FindWindow(FOOBAR_WINDOW_CLASS, NULL));
+	}
+	static void save_lastfm_token(const char* token){
+		lastfm_session = token;
 	}
 
 };
