@@ -4,7 +4,7 @@
 #include "config.h"
 
 
-DECLARE_COMPONENT_VERSION(NAME, "0.0.3", "search audio tracks using vk.com and last.fm");
+DECLARE_COMPONENT_VERSION(NAME, "0.0.4", "search audio tracks using vk.com and last.fm");
 
 class process_locations_notify_my : public process_locations_notify {
 public:
