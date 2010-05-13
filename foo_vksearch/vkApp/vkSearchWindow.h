@@ -99,6 +99,7 @@ private:
 	wxBoxSizer* m_vbox;
 	wxBoxSizer* m_hbox1;
 	wxBoxSizer* m_hbox2;
+	wxComboBox* m_searchVariants;
 	wxPanel* m_searchPanel;
 	wxMenu*	m_popupMenu;
 	wxCheckBox* m_keepPrevious;
@@ -118,6 +119,7 @@ private:
 	HANDLE m_searchThread;
 	bool m_closeAfterAdd;
 	bool m_vkRequestError;
+
 
 
 	wxString* StringHash(const char* string);
@@ -142,6 +144,7 @@ private:
 	void OnContextMenu(wxContextMenuEvent& evt);
 	void OnKeyDown(wxKeyEvent& event);
 	void OnSearchItemActivate(wxListEvent& evt);
+	void OnSearchVariantChange(wxCommandEvent& evt);
 
 	wxString* LastFmCallSig(std::map<wxString, wxString> params);
 	wxString* GetLastFmToken();

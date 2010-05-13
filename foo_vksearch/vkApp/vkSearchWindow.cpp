@@ -1,7 +1,16 @@
 #include "StdAfx.h"
 #include "vkSearchWindow.h"
 
-vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : wxFrame(NULL, wxID_ANY, title){	
+vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : wxFrame(NULL, wxID_ANY, title){
+	wxArrayString searchVariants;
+
+	searchVariants.Add(wxT("artist"));
+	searchVariants.Add(wxT("radio"));
+	searchVariants.Add(wxT("tag"));
+	searchVariants.Add(wxT("recommended"));
+	searchVariants.Add(wxT("user"));
+	searchVariants.Add(wxT("group"));
+	searchVariants.Add(wxT("vk.com"));
 	m_tracks = NULL;
 	m_popupMenu = NULL;
 	m_apiId = wxString::FromAscii(options.api_id);
@@ -28,13 +37,15 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	m_addSelected = new wxButton(m_searchPanel, ADDSELECTED_BUTTON, wxT("Add selected"));
 	m_deleteSelected = new wxButton(m_searchPanel, DELETESELECTED_BUTTON, wxT("Delete selected"));
 	m_keepPrevious = new wxCheckBox(m_searchPanel, wxID_ANY, wxT("Keep previous search result"));
+	m_searchVariants = new wxComboBox(m_searchPanel, wxID_ANY, wxT("artist"), wxDefaultPosition, wxDefaultSize, searchVariants, wxCB_DROPDOWN | wxCB_READONLY);
 
 	m_searchResult->InsertColumn(0, wxT("Artist"));
 	m_searchResult->InsertColumn(1, wxT("Title"));
 	m_searchResult->InsertColumn(2, wxT("Duration"), wxLIST_FORMAT_RIGHT);
 
 
-	m_hbox1->Add(m_queryTextBox, 1, wxRIGHT, 8);
+	m_hbox1->Add(m_searchVariants, 0);
+	m_hbox1->Add(m_queryTextBox, 1, wxRIGHT | wxLEFT, 4);
 	m_hbox1->Add(m_searchButton, 0);
 	m_hbox2->Add(m_addAll, 1, wxRIGHT);
 	m_hbox2->Add(m_addSelected, 1, wxRIGHT);
@@ -64,7 +75,8 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	Connect(wxEVT_CONTEXT_MENU, wxContextMenuEventHandler(vkSearchWindow::OnContextMenu));
 	m_queryTextBox->Connect(wxEVT_KEY_DOWN, wxKeyEventHandler(vkSearchWindow::OnKeyDown));
 	m_searchResult->Connect(wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler(vkSearchWindow::OnSearchItemActivate));
-	
+	m_searchVariants->Connect(wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler(vkSearchWindow::OnSearchVariantChange));
+		
 	wxSocketBase::Initialize();
 }
 
@@ -172,7 +184,7 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 	char *queryString = NULL;
 	bool success = false;
 
-	m_searchButton->Disable();
+	m_searchButton->SetLabel(wxT("stop"));
 	SetStatusText(wxT("working..."));
 	if(m_tracks && !m_keepPrevious->IsChecked()){
 		CleanUpSearchResult();
@@ -182,10 +194,62 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 		m_tracks = new std::list<Audio*>();
 	}
 	m_vkRequestError = false;
-	if(query.StartsWith(wxT("tag:"))){
-		query.Replace(wxT("tag:"), wxEmptyString);
+	if(m_searchVariants->GetValue() == wxT("artist")){
+		success = LastFmArtistSearch(query);
+	} else if(m_searchVariants->GetValue() == wxT("radio")){
+		success = LastFmArtistRadio(query);
+	} else if(m_searchVariants->GetValue() == wxT("tag")){
 		success = LastFmTagSearch(query);
-	} else if(query.StartsWith(wxT("vk:"))){
+	} else if(m_searchVariants->GetValue() == wxT("recommended")){
+		if(m_lastFmSession.Len() == 0){
+			wxString token = GetLastFmToken()->c_str();
+			LastFmRequestAuthorisation(token);
+			wxMessageBox(wxT("Allow access to your last.fm profile and press ok"), wxT("vk.com audio search"));
+			m_lastFmSession = GetAuthSession(token)->c_str();
+			if(m_saveLastFmSessionFn){
+				m_saveLastFmSessionFn(m_lastFmSession.ToAscii());
+			}
+		}
+		success = LastFmGetRecomendations();
+	} else if(m_searchVariants->GetValue() == wxT("user")){
+		std::map<wxString, wxString> params;
+
+		query.Replace(wxT("uid:"), wxEmptyString);
+		params[wxT("method")] = wxT("audio.get");
+		params[wxT("uid")] = query;
+		queryString = VkMethodUrl(params);
+		if(queryString){
+			if(BuildTrackList(queryString)){
+				m_tracks->sort(compare_tracks());
+				m_tracks->unique(equal_tracks());
+				std::list<Audio*>::iterator track = m_tracks->begin();
+
+				while(track != m_tracks->end()){
+					AddTrackToResultList(*track);
+					track++;
+				}
+			}
+		}
+	} else if(m_searchVariants->GetValue() == wxT("group")){
+		std::map<wxString, wxString> params;
+
+		query.Replace(wxT("gid:"), wxEmptyString);
+		params[wxT("method")] = wxT("audio.get");
+		params[wxT("gid")] = query;
+		queryString = VkMethodUrl(params);
+		if(queryString){
+			if(BuildTrackList(queryString)){
+				m_tracks->sort(compare_tracks());
+				m_tracks->unique(equal_tracks());
+				std::list<Audio*>::iterator track = m_tracks->begin();
+
+				while(track != m_tracks->end()){
+					AddTrackToResultList(*track);
+					track++;
+				}
+			}
+		}
+	} else if (m_searchVariants->GetValue() == wxT("vk.com")){
 		std::map<wxString, wxString> params;
 		
 		query.Replace(wxT("vk:"), wxEmptyString);
@@ -205,65 +269,11 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 				}
 			}
 		}
-	} else if(query.StartsWith(wxT("uid:"))){
-		std::map<wxString, wxString> params;
-
-		query.Replace(wxT("uid:"), wxEmptyString);
-		params[wxT("method")] = wxT("audio.get");
-		params[wxT("uid")] = query;
-		queryString = VkMethodUrl(params);
-		if(queryString){
-			if(BuildTrackList(queryString)){
-				m_tracks->sort(compare_tracks());
-				m_tracks->unique(equal_tracks());
-				std::list<Audio*>::iterator track = m_tracks->begin();
-
-				while(track != m_tracks->end()){
-					AddTrackToResultList(*track);
-					track++;
-				}
-			}
-		}
-	} else if(query.StartsWith(wxT("gid:"))){
-		std::map<wxString, wxString> params;
-
-		query.Replace(wxT("gid:"), wxEmptyString);
-		params[wxT("method")] = wxT("audio.get");
-		params[wxT("gid")] = query;
-		queryString = VkMethodUrl(params);
-		if(queryString){
-			if(BuildTrackList(queryString)){
-				m_tracks->sort(compare_tracks());
-				m_tracks->unique(equal_tracks());
-				std::list<Audio*>::iterator track = m_tracks->begin();
-
-				while(track != m_tracks->end()){
-					AddTrackToResultList(*track);
-					track++;
-				}
-			}
-		}
-	} else if(query.StartsWith(wxT("radio:"))){
-		query.Replace(wxT("radio:"), wxEmptyString);
-		success = LastFmArtistRadio(query);
-	} else if(query.IsSameAs(wxT("recs"), false) || query.IsSameAs(wxT("recommendations"), false)){
-		if(m_lastFmSession.Len() == 0){
-			wxString token = GetLastFmToken()->c_str();
-			LastFmRequestAuthorisation(token);
-			wxMessageBox(wxT("Allow access to your last.fm profile and press ok"), wxT("vk.com audio search"));
-			m_lastFmSession = GetAuthSession(token)->c_str();
-			if(m_saveLastFmSessionFn){
-				m_saveLastFmSessionFn(m_lastFmSession.ToAscii());
-			}
-		}
-		success = LastFmGetRecomendations();
-	} else {
-		success = LastFmArtistSearch(query);
 	}
 	if(!m_vkRequestError && success){
 		SetStatusText(wxT("done"));
 	}
-	m_searchButton->Enable();
+	m_searchButton->SetLabel(wxT("search"));
 	m_searchThread = 0;
 	return TRUE;
 }
@@ -298,7 +308,7 @@ Audio* vkSearchWindow::VkSearchTrack(wxString artistName, wxString trackName){
 				if(result){
 					try{
 						wxXmlDocument xml;
-						
+
 						if( xml.Load(*result) && xml.GetRoot() && xml.GetRoot()->GetName() != wxT("error")){
 							wxXmlNode *node = xml.GetRoot()->GetChildren();
 
@@ -724,8 +734,76 @@ wxString* vkSearchWindow::BuildLastFmMethodUrl( std::map<wxString, wxString> par
 	}
 	return result;
 }
+wxString* vkSearchWindow::VkCallSig( std::map<wxString, wxString> params )
+{
+	wxString* result = NULL; 
+	if(!params.empty()){
+		char signature[INTERNET_MAX_URL_LENGTH + 1] = {0};
+		char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
+		std::map<wxString, wxString>::iterator it = params.begin();
+
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_viewerId.ToUTF8().data());
+		sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH,"api_id=%s", m_apiId.ToUTF8().data());
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
+		params[wxT("test_mode")] = wxT("1");
+		while(it != params.end()){
+			sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
+			strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
+			it++;
+		}
+		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_secret.ToUTF8().data());
+		result = StringHash(signature);
+	}
+	return result;
+}
+
+char* vkSearchWindow::VkMethodUrl( std::map<wxString, wxString> params )
+{
+	char* result = NULL;
+
+	if(!params.empty()){
+		wxString *sig = VkCallSig(params);
+		if(sig){
+			char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
+			std::map<wxString, wxString>::iterator it = params.begin();
+
+			result = new char[INTERNET_MAX_URL_LENGTH + 1];
+			sprintf_s(result, INTERNET_MAX_URL_LENGTH, "http://api.vkontakte.ru/api.php?api_id=%s", m_apiId.ToUTF8().data());
+			if(params.find(wxT("q")) != params.end()){
+				//escape reserved url characters
+				params[wxT("q")].Replace(wxT("&"), wxT("%26"));
+				params[wxT("q")].Replace(wxT("+"), wxT("%2B"));
+				params[wxT("q")].Replace(wxT("$"), wxT("%24"));
+				params[wxT("q")].Replace(wxT(","), wxT("%2C"));
+				params[wxT("q")].Replace(wxT("/"), wxT("%2F"));
+				params[wxT("q")].Replace(wxT(":"), wxT("%3A"));
+				params[wxT("q")].Replace(wxT(";"), wxT("%3B"));
+				params[wxT("q")].Replace(wxT("="), wxT("%3D"));
+				params[wxT("q")].Replace(wxT("?"), wxT("%3F"));
+				params[wxT("q")].Replace(wxT("@"), wxT("%40"));
+				params[wxT("q")].Replace(wxT("#"), wxT("%23"));
+			}
+			params[wxT("sig")] = sig->c_str();
+			params[wxT("test_mode")] = wxT("1");
+			while(it != params.end()){
+				sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "&%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
+				strcat_s(result, INTERNET_MAX_URL_LENGTH, paramPair);
+				it++;
+			}
+			wxDELETE(sig);
+		}
+	}
+	return result;
+}
 void vkSearchWindow::OnSearchButtonClick(wxCommandEvent& evt){
-	DoSearch();
+	if(!m_searchThread){
+		DoSearch();
+	} else {
+		m_searchButton->SetLabel(wxT("search"));
+		TerminateThread(m_searchThread, 0);
+		m_searchThread = 0;
+		SetStatusText(wxT("stopped..."));
+	}
 }
 void vkSearchWindow::OnAddAllClick(wxCommandEvent& evt){
 	if(m_addTracksFn){
@@ -788,66 +866,17 @@ void vkSearchWindow::OnSearchItemActivate( wxListEvent& evt )
 	_this->AddSelected();
 }
 
-wxString* vkSearchWindow::VkCallSig( std::map<wxString, wxString> params )
+void vkSearchWindow::OnSearchVariantChange( wxCommandEvent& evt )
 {
-	wxString* result = NULL; 
-	if(!params.empty()){
-		char signature[INTERNET_MAX_URL_LENGTH + 1] = {0};
-		char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
-		std::map<wxString, wxString>::iterator it = params.begin();
+	vkSearchWindow* _this = (vkSearchWindow*)GetParent()->GetParent();
 
-		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_viewerId.ToUTF8().data());
-		sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH,"api_id=%s", m_apiId.ToUTF8().data());
-		strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
-		params[wxT("test_mode")] = wxT("1");
-		while(it != params.end()){
-			sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
-			strcat_s(signature, INTERNET_MAX_URL_LENGTH, paramPair);
-			it++;
-		}
-		strcat_s(signature, INTERNET_MAX_URL_LENGTH, m_secret.ToUTF8().data());
-		result = StringHash(signature);
+	if(_this->m_searchVariants->GetValue() == wxT("recommended") && _this->m_queryTextBox->IsShown()){
+		int width = _this->m_searchVariants->GetSize().GetWidth() + _this->m_queryTextBox->GetSize().GetWidth() + 4;
+		_this->m_queryTextBox->Hide();
+		_this->m_searchVariants->SetSize(width, wxDefaultCoord);
+	} else {
+		_this->m_queryTextBox->Show();
+		_this->m_searchVariants->SetSize(-1, -1, wxDefaultCoord, wxDefaultCoord, wxSIZE_AUTO);
 	}
-	return result;
-}
 
-char* vkSearchWindow::VkMethodUrl( std::map<wxString, wxString> params )
-{
-	char* result = NULL;
-
-	if(!params.empty()){
-		wxString *sig = VkCallSig(params);
-		if(sig){
-			char paramPair[INTERNET_MAX_URL_LENGTH + 1] = {0};
-			std::map<wxString, wxString>::iterator it = params.begin();
-
-			result = new char[INTERNET_MAX_URL_LENGTH + 1];
-			sprintf_s(result, INTERNET_MAX_URL_LENGTH, "http://api.vkontakte.ru/api.php?api_id=%s", m_apiId.ToUTF8().data());
-			if(params.find(wxT("q")) != params.end()){
-				//escape reserved url characters
-				params[wxT("q")].Replace(wxT("&"), wxT("%26"));
-				params[wxT("q")].Replace(wxT("+"), wxT("%2B"));
-				params[wxT("q")].Replace(wxT("$"), wxT("%24"));
-				params[wxT("q")].Replace(wxT(","), wxT("%2C"));
-				params[wxT("q")].Replace(wxT("/"), wxT("%2F"));
-				params[wxT("q")].Replace(wxT(":"), wxT("%3A"));
-				params[wxT("q")].Replace(wxT(";"), wxT("%3B"));
-				params[wxT("q")].Replace(wxT("="), wxT("%3D"));
-				params[wxT("q")].Replace(wxT("?"), wxT("%3F"));
-				params[wxT("q")].Replace(wxT("@"), wxT("%40"));
-				params[wxT("q")].Replace(wxT("#"), wxT("%23"));
-			}
-			params[wxT("sig")] = sig->c_str();
-			params[wxT("test_mode")] = wxT("1");
-			while(it != params.end()){
-				sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "&%s=%s", it->first.ToUTF8().data(), it->second.ToUTF8().data());
-				strcat_s(result, INTERNET_MAX_URL_LENGTH, paramPair);
-				it++;
-			}
-			/*sprintf_s(paramPair, INTERNET_MAX_URL_LENGTH, "sig=%s&test_mode=1", sig->c_str());
-			strcat_s(result, INTERNET_MAX_URL_LENGTH, paramPair);*/
-			wxDELETE(sig);
-		}
-	}
-	return result;
 }
