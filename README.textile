@@ -2,10 +2,4 @@ foobar2000 plugin for searching audio tracks from vk.com(vkontakte.ru). Requires
 
 Download "here":http://github.com/downloads/nobodyzzz/foo_vksearch/foo_vksearch.dll and put foo_vksearch to components folder in foobar2000 installation directory.
 
-Queries help:
-* artist(eg Rosetta) - take top50 tracks of artist from last.fm
-* tag:style (eg tag:jazz hop) - take top100 tracks of tag from last.fm
-* radio:artist (eg radio:Venetian Snares) - take 10 top tracks of an artist and 10 tracks of 10 similar artists(10 is default value and can be changed in settings)
-* uid:usernumber (eg uid:123456) - get tracks added by specified user
-* gid:groupnumber (eg gid:123456) - get tracks added to specified group
-* recs or recommendations - take 10 tracks of each  artist recommended to you by last.fm(http://www.last.fm/home/recs)
+!http://leprastuff.ru/data/img/20100514/9583a3bebee7bcd29a0b4ac042752296.png!
