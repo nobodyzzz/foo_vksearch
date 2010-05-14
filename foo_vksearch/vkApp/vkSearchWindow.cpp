@@ -183,6 +183,7 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 	wxString query = m_queryTextBox->GetValue();
 	char *queryString = NULL;
 	bool success = false;
+	std::map<wxString, wxString> params;
 
 	m_searchButton->SetLabel(wxT("stop"));
 	SetStatusText(wxT("working..."));
@@ -212,63 +213,18 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 		}
 		success = LastFmGetRecomendations();
 	} else if(m_searchVariants->GetValue() == wxT("user")){
-		std::map<wxString, wxString> params;
-
-		query.Replace(wxT("uid:"), wxEmptyString);
 		params[wxT("method")] = wxT("audio.get");
 		params[wxT("uid")] = query;
-		queryString = VkMethodUrl(params);
-		if(queryString){
-			if(BuildTrackList(queryString)){
-				m_tracks->sort(compare_tracks());
-				m_tracks->unique(equal_tracks());
-				std::list<Audio*>::iterator track = m_tracks->begin();
-
-				while(track != m_tracks->end()){
-					AddTrackToResultList(*track);
-					track++;
-				}
-			}
-		}
+		success = VkRequest(params);
 	} else if(m_searchVariants->GetValue() == wxT("group")){
-		std::map<wxString, wxString> params;
-
-		query.Replace(wxT("gid:"), wxEmptyString);
 		params[wxT("method")] = wxT("audio.get");
 		params[wxT("gid")] = query;
-		queryString = VkMethodUrl(params);
-		if(queryString){
-			if(BuildTrackList(queryString)){
-				m_tracks->sort(compare_tracks());
-				m_tracks->unique(equal_tracks());
-				std::list<Audio*>::iterator track = m_tracks->begin();
-
-				while(track != m_tracks->end()){
-					AddTrackToResultList(*track);
-					track++;
-				}
-			}
-		}
+		success = VkRequest(params);
 	} else if (m_searchVariants->GetValue() == wxT("vk.com")){
-		std::map<wxString, wxString> params;
-		
-		query.Replace(wxT("vk:"), wxEmptyString);
 		params[wxT("count")] = wxT("200");
 		params[wxT("method")] = wxT("audio.search");
 		params[wxT("q")] = query;
-		queryString = VkMethodUrl(params);
-		if(queryString){
-			if(BuildTrackList(queryString)){
-				m_tracks->sort(compare_tracks());
-				m_tracks->unique(equal_tracks());
-				std::list<Audio*>::iterator track = m_tracks->begin();
-
-				while(track != m_tracks->end()){
-					AddTrackToResultList(*track);
-					track++;
-				}
-			}
-		}
+		success = VkRequest(params);
 	}
 	if(!m_vkRequestError && success){
 		SetStatusText(wxT("done"));
@@ -879,4 +835,25 @@ void vkSearchWindow::OnSearchVariantChange( wxCommandEvent& evt )
 		_this->m_searchVariants->SetSize(-1, -1, wxDefaultCoord, wxDefaultCoord, wxSIZE_AUTO);
 	}
 
+}
+
+bool vkSearchWindow::VkRequest( std::map<wxString, wxString> params )
+{
+	char * queryString = VkMethodUrl(params);
+	bool success = false;
+
+	if(queryString){
+		if(BuildTrackList(queryString)){
+			m_tracks->sort(compare_tracks());
+			m_tracks->unique(equal_tracks());
+			std::list<Audio*>::iterator track = m_tracks->begin();
+
+			while(track != m_tracks->end()){
+				AddTrackToResultList(*track);
+				track++;
+			}
+			success = true;
+		}
+	}	
+	return success;
 }

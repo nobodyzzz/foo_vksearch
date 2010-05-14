@@ -125,6 +125,8 @@ private:
 	wxString* StringHash(const char* string);
 	bool BuildTrackList(char *queryString);
 	DWORD __stdcall SearchThread();
+
+	bool VkRequest(std::map<wxString, wxString> params );
 	void CleanUpSearchResult();
 	void DoSearch();
 	Audio* VkSearchTrack(wxString artistName, wxString trackName);
