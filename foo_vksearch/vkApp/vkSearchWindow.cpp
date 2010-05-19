@@ -351,31 +351,34 @@ bool vkSearchWindow::LastFmArtistSearch( wxString artist, int maxCount /*= 50*/ 
 		int trackCount = 0;
 
 		if(toptracks){
-			wxXmlDocument xml(*toptracks);
-			wxXmlNode *node = xml.GetRoot()->GetChildren();
+			wxXmlDocument xml;
 
-			while(node && !m_vkRequestError){
-				if(node->GetName() == wxT("track")){
-					wxXmlNode *track = node->GetChildren();
+			if( xml.Load(*toptracks) ){
+				wxXmlNode *node = xml.GetRoot()->GetChildren();
 
-					if(track->GetName() == wxT("name")){
-						wxString name = track->GetChildren()->GetContent();
-						Audio* track = VkSearchTrack(artist, name);
+				while(node && !m_vkRequestError){
+					if(node->GetName() == wxT("track")){
+						wxXmlNode *track = node->GetChildren();
 
-						if(track && std::find_if(m_tracks->begin(), m_tracks->end(), std::bind2nd(equal_tracks(), track)) == m_tracks->end()){
-							m_tracks->push_back(track);
-							AddTrackToResultList(track);
-							trackCount++;
-							if(trackCount == maxCount){
-								break;
+						if(track->GetName() == wxT("name")){
+							wxString name = track->GetChildren()->GetContent();
+							Audio* track = VkSearchTrack(artist, name);
+
+							if(track && std::find_if(m_tracks->begin(), m_tracks->end(), std::bind2nd(equal_tracks(), track)) == m_tracks->end()){
+								m_tracks->push_back(track);
+								AddTrackToResultList(track);
+								trackCount++;
+								if(trackCount == maxCount){
+									break;
+								}
 							}
 						}
 					}
+					wxMilliSleep(333);
+					node = node->GetNext();
 				}
-				wxMilliSleep(333);
-				node = node->GetNext();
+				success = !m_vkRequestError;
 			}
-			success = !m_vkRequestError;
 			wxDELETE(toptracks);
 		} else {
 			SetStatusText(wxT("last.fm request failed. try vk:") + artist);
@@ -398,27 +401,31 @@ bool vkSearchWindow::LastFmTagSearch( wxString tag )
 	if(url.IsOk()){
 		wxInputStream *toptracks = url.GetInputStream();
 		if(toptracks){
-			wxXmlDocument xml(*toptracks);
-			wxXmlNode *track = xml.GetRoot()->GetChildren();
+			wxXmlDocument xml;
 
-			while(track && !m_vkRequestError){
-				if(track->GetName() == wxT("track")){
-					wxXmlNode *artist = track->GetChildren();
-					wxString trackName = track->GetAttribute(wxT("name"), wxEmptyString);
-					wxString artistName = artist->GetAttribute(wxT("name"), wxEmptyString);
-					Audio* audio = VkSearchTrack(artistName, trackName);
+			if( xml.Load(*toptracks) ){
+				wxXmlNode *track = xml.GetRoot()->GetChildren();
 
-					if(audio){						
-						m_tracks->push_back(audio);
-						AddTrackToResultList(audio);
+				while(track && !m_vkRequestError){
+					if(track->GetName() == wxT("track")){
+						wxXmlNode *artist = track->GetChildren();
+						wxString trackName = track->GetAttribute(wxT("name"), wxEmptyString);
+						wxString artistName = artist->GetAttribute(wxT("name"), wxEmptyString);
+						Audio* audio = VkSearchTrack(artistName, trackName);
+
+						if(audio){						
+							m_tracks->push_back(audio);
+							AddTrackToResultList(audio);
+						}
+
 					}
-
+					wxMilliSleep(333);
+					track = track->GetNext();
 				}
-				wxMilliSleep(333);
-				track = track->GetNext();
+				success = !m_vkRequestError;
 			}
 			wxDELETE(toptracks);
-			success = !m_vkRequestError;
+			
 		} else {
 			SetStatusText(wxT("last.fm request failed..."));
 		}
@@ -443,27 +450,30 @@ bool vkSearchWindow::LastFmArtistRadio( wxString artist )
 		int count = 0;
 
 		if(similar){
-			wxXmlDocument xml(*similar);
-			wxXmlNode *node = xml.GetRoot()->GetChildren();
+			wxXmlDocument xml;
+			
+			if( xml.Load(*similar) ){
+				wxXmlNode *node = xml.GetRoot()->GetChildren();
 
-			while(node && !m_vkRequestError){
-				if(node->GetName() == wxT("artist")){
-					wxXmlNode *similarArtist = node->GetChildren();
+				while(node && !m_vkRequestError){
+					if(node->GetName() == wxT("artist")){
+						wxXmlNode *similarArtist = node->GetChildren();
 
-					if(similarArtist->GetName() == wxT("name")){
-						wxString name = similarArtist->GetChildren()->GetContent();
+						if(similarArtist->GetName() == wxT("name")){
+							wxString name = similarArtist->GetChildren()->GetContent();
 
-						LastFmArtistSearch(name, m_radioMaxTracks);
-						count++;
-						if(count == m_radioMaxArtists){
-							break;
+							LastFmArtistSearch(name, m_radioMaxTracks);
+							count++;
+							if(count == m_radioMaxArtists){
+								break;
+							}
 						}
 					}
+					node = node->GetNext();
 				}
-				node = node->GetNext();
+				success = !m_vkRequestError;
 			}
 			wxDELETE(similar);
-			success = !m_vkRequestError;
 		} else {
 			SetStatusText(wxT("last.fm request failed..."));
 		}
