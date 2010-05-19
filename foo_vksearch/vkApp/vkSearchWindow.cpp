@@ -381,7 +381,7 @@ bool vkSearchWindow::LastFmArtistSearch( wxString artist, int maxCount /*= 50*/ 
 			}
 			wxDELETE(toptracks);
 		} else {
-			SetStatusText(wxT("last.fm request failed. try vk:") + artist);
+			SetStatusText(wxT("last.fm request failed. try vk.com search"));
 		}
 	}
 	return success;
