@@ -175,6 +175,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\vkSearchResult.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\vkSearchWindow.cpp"
 				>
 			</File>
@@ -194,6 +198,10 @@
 			</File>
 			<File
 				RelativePath=".\vkApp.h"
+				>
+			</File>
+			<File
+				RelativePath=".\vkSearchResult.h"
 				>
 			</File>
 			<File

@@ -32,7 +32,7 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	m_searchPanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxCAPTION | wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxTHICK_FRAME, wxT("search panel"));
 	m_queryTextBox = new wxTextCtrl(m_searchPanel, QUERY_EDIT);
 	m_searchButton = new wxButton(m_searchPanel, SEARCH_BUTTON, wxT("search"));
-	m_searchResult = new wxListCtrl(m_searchPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT);	
+	m_searchResult = new vkSearchResult(m_searchPanel);	
 	m_addAll = new wxButton(m_searchPanel, ADDALL_BUTTON, wxT("Add all"));
 	m_addSelected = new wxButton(m_searchPanel, ADDSELECTED_BUTTON, wxT("Add selected"));
 	m_deleteSelected = new wxButton(m_searchPanel, DELETESELECTED_BUTTON, wxT("Delete selected"));
@@ -74,8 +74,10 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	Connect(DELETESELECTED_BUTTON, wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(vkSearchWindow::OnDeleteSelectedClick));
 	Connect(wxEVT_CONTEXT_MENU, wxContextMenuEventHandler(vkSearchWindow::OnContextMenu));
 	m_queryTextBox->Connect(wxEVT_KEY_DOWN, wxKeyEventHandler(vkSearchWindow::OnKeyDown));
+	m_searchResult->Connect(wxEVT_KEY_DOWN, wxKeyEventHandler(vkSearchWindow::OnSearchResultKeyDown));
 	m_searchResult->Connect(wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler(vkSearchWindow::OnSearchItemActivate));
 	m_searchVariants->Connect(wxEVT_COMMAND_COMBOBOX_SELECTED, wxCommandEventHandler(vkSearchWindow::OnSearchVariantChange));
+	m_searchPanel->Connect(wxEVT_KEY_DOWN, wxKeyEventHandler(vkSearchWindow::OnEscKeyDown));
 		
 	wxSocketBase::Initialize();
 }
@@ -825,6 +827,75 @@ void vkSearchWindow::OnKeyDown(wxKeyEvent& event){
 		event.Skip();
 	}
 }
+void vkSearchWindow::OnEscKeyDown( wxKeyEvent& event )
+{
+	if(event.GetKeyCode() == WXK_ESCAPE){
+		Close();
+	}
+}
+void vkSearchWindow::OnSearchResultKeyDown( wxKeyEvent& evt )
+{
+	vkSearchWindow* _this = (vkSearchWindow*)GetParent()->GetParent();
+	vkSearchResult* list = _this->m_searchResult;
+	int keyCode = evt.GetKeyCode();
+	long item = -1;
+	long geometry = 0;
+
+
+	switch(keyCode)
+	{
+	case 'A':
+		if(evt.ControlDown()){
+			long item = -1;
+
+			while((item = list->GetNextItem(item)) != -1){
+				list->Select(item);
+			}
+		}
+		break;
+	case 'C':
+		if(evt.ControlDown()){
+			_this->CopyUrlsToClipboard();
+		}
+		break;
+	case WXK_DELETE:
+		_this->DeleteSelectedTracks();	
+		break;
+	case WXK_RETURN:
+	case WXK_NUMPAD_ENTER:
+		_this->AddSelected();
+		break;
+	case WXK_UP:
+	case WXK_DOWN:		
+		geometry = keyCode == WXK_DOWN ? wxLIST_NEXT_BELOW : wxLIST_NEXT_ABOVE;	
+		item = list->GetFocusedItem();
+
+		if(wxNOT_FOUND == item){
+			item = list->GetListLastSelectedItem(geometry);
+		}
+		if(wxNOT_FOUND != item){
+			if(evt.ControlDown())
+			{		
+				item = list->GetNextItem(item, geometry);
+				list->Focus(item);			
+			} else {
+				if(!evt.ShiftDown()){
+					list->DeselectAllItems();
+				}
+				item = list->GetNextItem(item, geometry);
+				list->SetItemState(item, wxLIST_STATE_SELECTED|wxLIST_STATE_FOCUSED, wxLIST_STATE_SELECTED|wxLIST_STATE_FOCUSED);
+				list->EnsureVisible(item);
+			}
+		}
+		break;
+	case WXK_SPACE:
+		item = list->GetFocusedItem();
+		if(-1 != item){
+			list->Select(item, !list->IsSelected(item));
+		}
+		break;
+	}
+}
 
 void vkSearchWindow::OnSearchItemActivate( wxListEvent& evt )
 {
@@ -867,3 +938,4 @@ bool vkSearchWindow::VkRequest( std::map<wxString, wxString> params )
 	}	
 	return success;
 }
+

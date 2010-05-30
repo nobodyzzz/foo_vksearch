@@ -25,6 +25,8 @@
 #include "wx/stdpaths.h"
 #include "wx/log.h"
 
+#include "vkSearchResult.h"
+
 #define MD5LEN 16
 
 enum {
@@ -103,7 +105,7 @@ private:
 	wxPanel* m_searchPanel;
 	wxMenu*	m_popupMenu;
 	wxCheckBox* m_keepPrevious;
-	wxListCtrl *m_searchResult;
+	vkSearchResult *m_searchResult;
 	std::list<Audio*>* m_tracks;
 	wxLogNull* m_noLog;
 	wxString m_apiId;
@@ -138,6 +140,7 @@ private:
 	void CopyUrlsToClipboard();
 	void AddSelected();
 	wxString Unescape(wxString string);
+
 	void OnSearchButtonClick(wxCommandEvent& evt);
 	void OnAddAllClick(wxCommandEvent& evt);
 	void OnAddSelectedClick(wxCommandEvent& evt);
@@ -147,6 +150,8 @@ private:
 	void OnKeyDown(wxKeyEvent& event);
 	void OnSearchItemActivate(wxListEvent& evt);
 	void OnSearchVariantChange(wxCommandEvent& evt);
+	void OnEscKeyDown(wxKeyEvent& event);
+	void OnSearchResultKeyDown(wxKeyEvent& evt);
 
 	wxString* LastFmCallSig(std::map<wxString, wxString> params);
 	wxString* GetLastFmToken();
