@@ -171,6 +171,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\StreoMoodTags.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\vkApp.cpp"
 				>
 			</File>
@@ -190,6 +194,10 @@
 			>
 			<File
 				RelativePath=".\stdafx.h"
+				>
+			</File>
+			<File
+				RelativePath=".\StreoMoodTags.h"
 				>
 			</File>
 			<File

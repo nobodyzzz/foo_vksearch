@@ -3,14 +3,29 @@
 #include "stdafx.h"
 #include "config.h"
 
+//TODO: Rewrite vk.com search
+//TODO: prostoplayer radio top
+//TODO: www.stereomood.com support
 
-DECLARE_COMPONENT_VERSION(NAME, "0.0.4", "search audio tracks using vk.com and last.fm");
+DECLARE_COMPONENT_VERSION(NAME, "0.0.5", "search audio tracks using vk.com and last.fm");
 
 class process_locations_notify_my : public process_locations_notify {
 public:
 	void on_completion(const pfc::list_base_const_t<metadb_handle_ptr> & p_items)
 	{
 		static_api_ptr_t<playlist_manager> plm;
+		file_info_impl info;
+
+
+		p_items[0]->get_info(info);
+		info.meta_set("artist", "artist");
+		info.meta_set("title", "title");
+		static_api_ptr_t<metadb_io_v2>()->update_info_async_simple(
+			pfc::list_single_ref_t<metadb_handle_ptr>(p_items[0]),
+			pfc::list_single_ref_t<const file_info*>(&info),
+			core_api::get_main_window(), NULL, NULL);
+
+
 		plm->activeplaylist_add_items(p_items, bit_array_true());
 	};
 

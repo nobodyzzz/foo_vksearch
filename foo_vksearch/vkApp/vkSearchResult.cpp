@@ -16,12 +16,21 @@ long vkSearchResult::GetListLastSelectedItem( long geometry )
 
 }
 
-void vkSearchResult::DeselectAllItems()
+void vkSearchResult::DeselectAll()
 {
 	long item = GetFirstSelected();
 
 	while(wxNOT_FOUND != item){
 		Select(item, false);
 		item = GetNextSelected(item);		
+	}
+}
+
+void vkSearchResult::SelectAll()
+{
+	long item = -1;
+
+	while((item = GetNextItem(item)) != wxNOT_FOUND){
+		Select(item);
 	}
 }

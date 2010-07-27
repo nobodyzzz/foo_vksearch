@@ -11,6 +11,7 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	searchVariants.Add(wxT("user"));
 	searchVariants.Add(wxT("group"));
 	searchVariants.Add(wxT("vk.com"));
+	searchVariants.Add(wxT("stereomood.com"));
 	m_tracks = NULL;
 	m_popupMenu = NULL;
 	m_apiId = wxString::FromAscii(options.api_id);
@@ -38,11 +39,13 @@ vkSearchWindow::vkSearchWindow(const wxString& title, searchOptions options) : w
 	m_deleteSelected = new wxButton(m_searchPanel, DELETESELECTED_BUTTON, wxT("Delete selected"));
 	m_keepPrevious = new wxCheckBox(m_searchPanel, wxID_ANY, wxT("Keep previous search result"));
 	m_searchVariants = new wxComboBox(m_searchPanel, wxID_ANY, wxT("artist"), wxDefaultPosition, wxDefaultSize, searchVariants, wxCB_DROPDOWN | wxCB_READONLY);
+	m_stereomoodTag = new wxComboBox();
 
 	m_searchResult->InsertColumn(0, wxT("Artist"));
 	m_searchResult->InsertColumn(1, wxT("Title"));
 	m_searchResult->InsertColumn(2, wxT("Duration"), wxLIST_FORMAT_RIGHT);
 
+	m_stereomoodTag->Hide();
 
 	m_hbox1->Add(m_searchVariants, 0);
 	m_hbox1->Add(m_queryTextBox, 1, wxRIGHT | wxLEFT, 4);
@@ -222,11 +225,13 @@ DWORD __stdcall vkSearchWindow::SearchThread(){
 		params[wxT("method")] = wxT("audio.get");
 		params[wxT("gid")] = query;
 		success = VkRequest(params);
-	} else if (m_searchVariants->GetValue() == wxT("vk.com")){
+	} else if(m_searchVariants->GetValue() == wxT("vk.com")){
 		params[wxT("count")] = wxT("200");
 		params[wxT("method")] = wxT("audio.search");
 		params[wxT("q")] = query;
 		success = VkRequest(params);
+	} else if(m_searchVariants->GetValue() == wxT("stereomood.com")){
+		success = StereoMoodRequest(m_stereomoodTag->GetValue());
 	}
 	if(!m_vkRequestError && success){
 		SetStatusText(wxT("done"));
@@ -841,16 +846,11 @@ void vkSearchWindow::OnSearchResultKeyDown( wxKeyEvent& evt )
 	long item = -1;
 	long geometry = 0;
 
-
 	switch(keyCode)
 	{
 	case 'A':
 		if(evt.ControlDown()){
-			long item = -1;
-
-			while((item = list->GetNextItem(item)) != -1){
-				list->Select(item);
-			}
+			list->SelectAll();
 		}
 		break;
 	case 'C':
@@ -880,7 +880,7 @@ void vkSearchWindow::OnSearchResultKeyDown( wxKeyEvent& evt )
 				list->Focus(item);			
 			} else {
 				if(!evt.ShiftDown()){
-					list->DeselectAllItems();
+					list->DeselectAll();
 				}
 				item = list->GetNextItem(item, geometry);
 				list->SetItemState(item, wxLIST_STATE_SELECTED|wxLIST_STATE_FOCUSED, wxLIST_STATE_SELECTED|wxLIST_STATE_FOCUSED);
@@ -890,7 +890,7 @@ void vkSearchWindow::OnSearchResultKeyDown( wxKeyEvent& evt )
 		break;
 	case WXK_SPACE:
 		item = list->GetFocusedItem();
-		if(-1 != item){
+		if(wxNOT_FOUND != item){
 			list->Select(item, !list->IsSelected(item));
 		}
 		break;
@@ -907,14 +907,37 @@ void vkSearchWindow::OnSearchVariantChange( wxCommandEvent& evt )
 {
 	vkSearchWindow* _this = (vkSearchWindow*)GetParent()->GetParent();
 
-	if(_this->m_searchVariants->GetValue() == wxT("recommended") && _this->m_queryTextBox->IsShown()){
+	_this->m_stereomoodTag->Hide();
+	_this->m_queryTextBox->Show();
+	_this->m_searchVariants->SetSize(-1, -1, wxDefaultCoord, wxDefaultCoord, wxSIZE_AUTO);
+
+	if(_this->m_searchVariants->GetValue() == wxT("recommended")){
 		int width = _this->m_searchVariants->GetSize().GetWidth() + _this->m_queryTextBox->GetSize().GetWidth() + 4;
 		_this->m_queryTextBox->Hide();
 		_this->m_searchVariants->SetSize(width, wxDefaultCoord);
-	} else {
-		_this->m_queryTextBox->Show();
-		_this->m_searchVariants->SetSize(-1, -1, wxDefaultCoord, wxDefaultCoord, wxSIZE_AUTO);
+	} else if(_this->m_searchVariants->GetValue() == wxT("stereomood.com")) {
+		if(_this->m_stereomoodTags.Count() == 0){
+			union {
+				DWORD (__stdcall vkSearchWindow::*method)();
+				DWORD (__stdcall *fn)(void*);
+			} ptr = { &vkSearchWindow::FillStereomoodTagsThread};
+			wxArrayString choises;
+
+			choises.Add(wxT("Loading..."));
+			_this->m_stereomoodTag->Create(	_this->m_searchPanel,
+											wxID_ANY,
+											choises[0],
+											_this->m_queryTextBox->GetPosition(),
+											_this->m_queryTextBox->GetSize(),
+											choises);
+			_this->m_hbox1->Insert(1, _this->m_stereomoodTag);
+			CreateThread(NULL, 0, ptr.fn, _this, 0, NULL);			
+		} 
+		_this->m_queryTextBox->Hide();
+		_this->m_stereomoodTag->Show();
+		
 	}
+
 
 }
 
@@ -939,3 +962,130 @@ bool vkSearchWindow::VkRequest( std::map<wxString, wxString> params )
 	return success;
 }
 
+void vkSearchWindow::GetStereomoodTags()
+{
+	StreoMoodTags main(ReadUrlToString(wxT("http://stereomood.com/")));
+	StreoMoodTags more(ReadUrlToString(wxT("http://stereomood.com/tools/ajax_more_tags.php")));
+	std::map<wxString, wxString>& mainTags = main.GetTagLinksMap();
+	std::map<wxString, wxString>& moreTags = more.GetTagLinksMap();
+
+	m_stereomoodLinksMap.insert(mainTags.begin(), mainTags.end());
+	m_stereomoodLinksMap.insert(moreTags.begin(), moreTags.end());
+	std::for_each(mainTags.begin(), mainTags.end(), AddToWxStringArray(m_stereomoodTags));
+	std::for_each(moreTags.begin(), moreTags.end(), AddToWxStringArray(m_stereomoodTags));
+	return;
+}
+
+bool vkSearchWindow::StereoMoodRequest( wxString tag )
+{
+	bool success = false;
+	wxURL url(m_stereomoodLinksMap[tag]);
+
+	if(url.IsOk()){
+		wxInputStream* result = url.GetInputStream();
+
+		if(result){
+			try{
+				wxXmlDocument xml(*result);
+				wxXmlNode *node = xml.GetRoot()->GetChildren();
+				long total = 0;
+				long indexes = 0;
+
+				if(node->GetName() == wxT("tracksTotal")){
+					node->GetChildren()->GetContent().ToLong(&total);
+					indexes = total / 20;
+					indexes += (total % 20) ? 1 : 0;
+					for(long i = 0; i < indexes; i++){
+						StereoMoodGetTracks(url.GetURL(), i + 1);
+					}					
+				}
+				success = true;
+			} catch(...){}
+		}
+	}
+
+	return success;
+}
+
+void vkSearchWindow::StereoMoodGetTracks( wxString url, long index)
+{
+	wxURL tagurl(url + wxString::Format(wxT("?index=%d"), index));
+
+	if(tagurl.IsOk()){
+		wxInputStream	*xspfStream = tagurl.GetInputStream();
+
+		if(xspfStream){
+			wxXmlDocument xml(*xspfStream);
+			wxXmlNode *node = xml.GetRoot()->GetChildren();
+
+			while (node)
+			{
+				if(node->GetName() == wxT("trackList")){
+					wxXmlNode *tracks = node->GetChildren();
+
+					while(tracks){
+						if(tracks->GetName() == wxT("track")){
+							wxXmlNode *track = tracks->GetChildren();
+							wxString artist; 
+							wxString title; 
+							wxString url; 
+
+							while(track){
+								wxString name = track->GetName();
+								if(name == wxT("creator")){
+									artist = Unescape(track->GetChildren()->GetContent());
+								} else if(name == wxT("title")){
+									title = Unescape(track->GetChildren()->GetContent());
+								} else if(name == wxT("location")){
+									url = track->GetChildren()->GetContent();
+								}
+								track = track->GetNext();
+							}
+							Audio* audio = new Audio();
+							audio->artist = artist; 
+							audio->title = title;
+							audio->url = url;  
+							audio->duration = 0;  
+							m_tracks->push_back(audio);
+							AddTrackToResultList(audio);
+						}
+						tracks = tracks->GetNext();
+					}
+				}
+				node = node->GetNext();
+			}
+		}
+		wxDELETE(xspfStream);
+	}
+	
+}
+
+DWORD __stdcall vkSearchWindow::FillStereomoodTagsThread()
+{
+	m_stereomoodTag->Disable();
+	GetStereomoodTags();
+	m_stereomoodTag->Clear();
+	m_stereomoodTag->Append(m_stereomoodTags);
+	m_stereomoodTag->SetValue(m_stereomoodTags[0]);
+	m_stereomoodTag->Enable();
+	return TRUE;
+}
+
+wxString vkSearchWindow::ReadUrlToString( wxString address )
+{
+	wxURL url(address);
+	wxString str;
+
+	if(url.IsOk()){
+		wxInputStream *stream = url.GetInputStream();
+		char* data = new char[0x1000];
+
+		while(!stream->Eof()){
+			stream->Read(data, 0x1000);
+			str += wxString::FromUTF8(data, 0x1000);
+		}
+		delete[] data;
+		wxDELETE(stream);
+	}
+	return str;
+}

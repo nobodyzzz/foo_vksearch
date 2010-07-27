@@ -16,5 +16,7 @@ public:
 	}
 
 	long GetListLastSelectedItem( long geometry );
-	void DeselectAllItems();
+	void DeselectAll();
+	void SelectAll();
+
 };

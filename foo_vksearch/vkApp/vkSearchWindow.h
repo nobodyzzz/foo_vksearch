@@ -14,6 +14,7 @@
 #include <string>
 #include <map>
 
+
 #include "wx/wxprec.h"
 #include "wx/textctrl.h"
 #include "wx/listctrl.h"
@@ -24,8 +25,11 @@
 #include "wx/filename.h"
 #include "wx/stdpaths.h"
 #include "wx/log.h"
+#include "wx/regex.h"
+#include "wx/tokenzr.h"
 
 #include "vkSearchResult.h"
+#include "StreoMoodTags.h"
 
 #define MD5LEN 16
 
@@ -63,6 +67,15 @@ struct delete_object
 	template <typename T>
 	void operator()(T *ptr){ delete ptr;}
 };
+
+
+class AddToWxStringArray{
+	wxArrayString& m_array;
+public:
+	AddToWxStringArray(wxArrayString& array) : m_array(array) {}
+	void operator() (std::pair<wxString, wxString> mapEntry) { m_array.Add(mapEntry.first);}
+};
+
 
 struct equal_tracks : std::binary_function<Audio*, Audio*, bool>{
 	bool operator()(const Audio* op1, const Audio* op2) const{
@@ -102,6 +115,7 @@ private:
 	wxBoxSizer* m_hbox1;
 	wxBoxSizer* m_hbox2;
 	wxComboBox* m_searchVariants;
+	wxComboBox* m_stereomoodTag;
 	wxPanel* m_searchPanel;
 	wxMenu*	m_popupMenu;
 	wxCheckBox* m_keepPrevious;
@@ -121,13 +135,18 @@ private:
 	HANDLE m_searchThread;
 	bool m_closeAfterAdd;
 	bool m_vkRequestError;
+	wxArrayString m_stereomoodTags;
+	std::map<wxString, wxString> m_stereomoodLinksMap;
 
 
 
 	wxString* StringHash(const char* string);
 	bool BuildTrackList(char *queryString);
 	DWORD __stdcall SearchThread();
+	DWORD __stdcall FillStereomoodTagsThread();
 
+	bool StereoMoodRequest(wxString tag);
+	void StereoMoodGetTracks(wxString url, long index);
 	bool VkRequest(std::map<wxString, wxString> params );
 	void CleanUpSearchResult();
 	void DoSearch();
@@ -139,7 +158,9 @@ private:
 	void DeleteSelectedTracks();
 	void CopyUrlsToClipboard();
 	void AddSelected();
+	void GetStereomoodTags();
 	wxString Unescape(wxString string);
+	wxString ReadUrlToString(wxString url);
 
 	void OnSearchButtonClick(wxCommandEvent& evt);
 	void OnAddAllClick(wxCommandEvent& evt);
